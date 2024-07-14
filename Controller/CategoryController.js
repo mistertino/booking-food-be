@@ -39,23 +39,36 @@ const createCategory = async (req, res) => {
 
 // Update Category
 const updateCategory = async (req, res) => {
-  const { categoryId, name, code } = req.body;
+  const { categoryId, name, code, image } = req.body;
 
   try {
     // check tồn tại danh mục
     const oldCategory = await categoryModel.find({
       $or: [{ name: name }, { code: code }],
     });
-    if (oldCategory.length > 0) {
+    if (oldCategory.length > 0 && oldCategory.every(item => item?._id.toString() !== categoryId)) {
       return res.status(400).json("Danh mục đã tồn tại");
     }
 
-    const category = await categoryModel.findByIdAndUpdate(
-      categoryId,
-      { name, code },
-      { new: true }
-    );
-    res.status(200).json({ status: 1 });
+    if (image) {
+      const result = await cloudinary.uploader.upload(image, {
+        upload_preset: "upload_image_unsigned",
+        allowed_formats: ["png", "jpg", "jpeg", "svg", "ico", "jfif"],
+      });
+      await categoryModel.findByIdAndUpdate(
+        categoryId,
+        { name, code, image: { public_id: result.public_id, url: result.secure_url }, },
+        { new: true }
+      );
+      return res.status(200).json({ status: 1 });
+    } else {
+      await categoryModel.findByIdAndUpdate(
+        categoryId,
+        { name, code },
+        { new: true }
+      );
+      return res.status(200).json({ status: 1 });
+    }
   } catch (error) {
     res.status(500).json(error);
   }
